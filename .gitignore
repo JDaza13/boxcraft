@@ -1,0 +1,10 @@
+# Vagrant machine state
+.vagrant/
+
+# Packer build output
+builds/
+*.box
+
+# Windows
+Thumbs.db
+Desktop.ini

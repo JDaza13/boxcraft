@@ -1,0 +1,134 @@
+# ============================================================
+#  Linux Mint 21 Cinnamon Workstation — Vagrantfile
+#  Hypervisor : VirtualBox
+#  Desktop    : Cinnamon (included in box)
+#  Tools      : git, gh CLI, Docker, nvm/Node LTS,
+#               tmux, zsh, oh-my-zsh, Go, Rust, VS Code
+#
+#  Usage:
+#    cd mint
+#    vagrant up          # first boot (~15 min)
+#    vagrant reload      # reboot VM
+#    vagrant ssh         # terminal access
+#    vagrant halt        # graceful shutdown
+#    vagrant destroy -f  # wipe everything
+#
+#  Tune config without rebuilding:
+#    vagrant provision --provision-with tune
+# ============================================================
+
+# Prompt for username and password (hidden input, only on first provision)
+# The chosen username is saved to .vagrant/dev_user so `vagrant provision`
+# picks it up automatically without needing to re-prompt.
+require 'io/console'
+vm_id_file   = File.join(__dir__, '.vagrant', 'machines', 'default', 'virtualbox', 'id')
+user_file    = File.join(__dir__, '.vagrant', 'dev_user')
+dev_user     = ENV['DEV_USER']
+dev_password = ENV['DEV_PASSWORD']
+
+if !File.exist?(vm_id_file) || File.read(vm_id_file).strip.empty?
+  $stdout.print "\n>>> Username for dev user [dev]: "
+  $stdout.flush
+  input = $stdin.gets.chomp
+  dev_user = input.empty? ? "dev" : input
+
+  $stdout.print ">>> Set password for '#{dev_user}': "
+  $stdout.flush
+  dev_password = $stdin.noecho(&:gets).chomp
+  puts ""
+
+  File.write(user_file, dev_user)
+end
+
+dev_user ||= File.exist?(user_file) ? File.read(user_file).strip : "dev"
+dev_password ||= ""
+dev_tz       = ENV.fetch('DEV_TZ', 'America/Bogota')
+
+# Use the Packer-baked box if build.ps1 has been run, otherwise upstream.
+# Upstream path runs provision-base.sh first (~15 min); baked path skips it (~2 min).
+PACKER_BUILT = File.join(__dir__, '.vagrant', 'packer_built')
+USE_BAKED    = File.exist?(PACKER_BUILT)
+BOX          = USE_BAKED ? "boxcraft/mint" : "CJJR/LinuxMint21"
+
+Vagrant.configure("2") do |config|
+
+  config.vm.box              = BOX
+  config.vm.box_check_update = false
+  config.vm.hostname         = "#{dev_user}-mint"
+
+  # ── NAT port forwarding ────────────────────────────────────
+  config.vm.network "forwarded_port", guest: 8080, host: 8080, id: "airflow"
+  config.vm.network "forwarded_port", guest: 3210, host: 3210, host_ip: "0.0.0.0", id: "convex-local"
+  config.vm.network "forwarded_port", guest: 3211, host: 3211, host_ip: "0.0.0.0", id: "convex-local-artifacts"
+  config.vm.network "forwarded_port", guest: 3000, host: 3000, host_ip: "0.0.0.0", id: "convex-turborepo"
+  config.vm.network "forwarded_port", guest: 2003, host: 2003, host_ip: "0.0.0.0", id: "graphql"
+  config.vm.network "forwarded_port", guest: 3035, host: 3035, id: "sunrise-api"
+  config.vm.network "forwarded_port", guest: 5173, host: 5173, host_ip: "0.0.0.0", id: "vite"
+  config.vm.network "forwarded_port", guest: 5174, host: 5174, host_ip: "0.0.0.0", id: "vite2"
+
+  # ── Shared folders ─────────────────────────────────────────
+  # Default: repo root. Override with: $env:WORKSPACE = "C:\your\path"
+  workspace_host = ENV.fetch('WORKSPACE', 'V:/SharedFolder')
+  config.vm.synced_folder workspace_host, "/workspace",
+    owner:         "vagrant",
+    group:         "vagrant",
+    mount_options: ["dmode=775", "fmode=664", "_netdev"]
+
+  # ── VirtualBox provider ────────────────────────────────────
+  config.vm.provider "virtualbox" do |vb|
+    vb.name   = "#{dev_user}-mint"
+    vb.memory = 25000
+    vb.cpus   = 8
+    vb.gui    = true
+
+    vb.customize ["modifyvm", :id, "--vram",               "256"]
+    vb.customize ["modifyvm", :id, "--graphicscontroller", "vmsvga"]
+    vb.customize ["modifyvm", :id, "--accelerate3d",       "on"]
+    vb.customize ["modifyvm", :id, "--clipboard",          "bidirectional"]
+    vb.customize ["modifyvm", :id, "--draganddrop",        "bidirectional"]
+    vb.customize ["modifyvm", :id, "--audio",              "default"]
+    vb.customize ["modifyvm", :id, "--usb",                "on"]
+    vb.customize ["modifyvm", :id, "--usbehci",            "on"]
+    vb.customize ["modifyvm", :id, "--paravirtprovider",   "kvm"]
+    vb.customize ["modifyvm", :id, "--x2apic",             "on"]
+    vb.customize ["modifyvm", :id, "--largepages",         "on"]
+  end
+
+  # ── Provisioning ───────────────────────────────────────────
+  # "system" — system packages (skipped when using Packer-baked box)
+  # "base"   — user setup; Vagrant reboots the VM afterwards
+  # "tune"   — dotfiles/config; re-run any time with:
+  #              vagrant provision --provision-with tune
+
+  unless USE_BAKED
+    config.vm.provision "file",
+      source:      "provision-base.sh",
+      destination: "/tmp/provision-base.sh"
+
+    config.vm.provision "shell", name: "system", privileged: true,
+      run:    "once",
+      inline: "bash /tmp/provision-base.sh"
+  end
+
+  config.vm.provision "file",
+    source:      "provision.sh",
+    destination: "/tmp/provision.sh"
+
+  config.vm.provision "shell", name: "base", privileged: true,
+    run:    "once",
+    reboot: true,
+    env:    { "DEV_USER" => dev_user, "DEV_PASSWORD" => dev_password, "DEV_TZ" => dev_tz },
+    inline: "bash /tmp/provision.sh"
+
+  config.vm.provision "file",
+    source:      "provision-tune.sh",
+    destination: "/tmp/provision-tune.sh",
+    run:         "always"
+
+  config.vm.provision "shell", name: "tune", privileged: true,
+    run:    "always",
+    reboot: true,
+    env:    { "DEV_USER" => dev_user },
+    inline: "bash /tmp/provision-tune.sh"
+
+end

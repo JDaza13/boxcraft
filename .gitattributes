@@ -1,0 +1,11 @@
+# Shell scripts and Unix config files must stay LF
+*.sh        text eol=lf
+Vagrantfile text eol=lf
+*.hcl       text eol=lf
+*.conf      text eol=lf
+
+# Windows scripts are fine with CRLF
+*.ps1       text eol=crlf
+
+# Everything else — let Git normalise
+*           text=auto
