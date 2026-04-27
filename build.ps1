@@ -35,13 +35,19 @@ try {
     # Initialise Packer plugins
     Write-Host "==> Initialising Packer plugins..." -ForegroundColor Cyan
     packer init $PackerFile
-    if ($LASTEXITCODE -ne 0) { throw "packer init failed" }
+    if ($LASTEXITCODE -ne 0) { throw "packer init failed (exit $LASTEXITCODE)" }
+
+    # Validate config before spending 20 min on a broken build
+    Write-Host ""
+    Write-Host "==> Validating Packer config..." -ForegroundColor Cyan
+    packer validate $PackerFile
+    if ($LASTEXITCODE -ne 0) { throw "packer validate failed (exit $LASTEXITCODE) -- check the .pkr.hcl file" }
 
     # Build the box
     Write-Host ""
     Write-Host "==> Running Packer build..." -ForegroundColor Cyan
-    packer build $PackerFile
-    if ($LASTEXITCODE -ne 0) { throw "packer build failed" }
+    packer build -force $PackerFile
+    if ($LASTEXITCODE -ne 0) { throw "packer build failed (exit $LASTEXITCODE) -- scroll up for the full packer output" }
 
     # Find the output .box file
     $boxFile = Get-ChildItem -Path $BuildsDir -Filter "*.box" -ErrorAction Stop |
