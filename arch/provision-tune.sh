@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-#  provision-tune.sh — dotfiles, shell config, GNOME prefs
+#  provision-tune.sh — dotfiles, shell config, KDE Plasma prefs
 #
 #  Re-run any time without destroying the VM:
 #    vagrant provision --provision-with tune
@@ -14,7 +14,6 @@ DEV_HOME="/home/${DEV_USER}"
 log() { echo ""; echo "====> $*"; echo ""; }
 
 # ── .zshrc additions ──────────────────────────────────────────
-# Uses a marker so re-runs replace the block instead of appending.
 log "Writing .zshrc additions..."
 ZSHRC="${DEV_HOME}/.zshrc"
 touch "$ZSHRC"
@@ -28,8 +27,7 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ]           && \. "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ]  && \. "$NVM_DIR/bash_completion"
 
-# Go
-export PATH=$PATH:/usr/local/go/bin
+# Go (installed via pacman to /usr/bin; only GOPATH/bin needs to be on PATH)
 export GOPATH=$HOME/go
 export PATH=$PATH:$GOPATH/bin
 
@@ -76,50 +74,65 @@ cat > "${DEV_HOME}/.local/share/applications/workspace.desktop" << 'EOF'
 [Desktop Entry]
 Type=Application
 Name=Workspace
-Exec=nautilus /workspace
+Exec=dolphin /workspace
 Icon=folder
 Terminal=false
 EOF
 
-# ── GNOME dock favorites ──────────────────────────────────────
-log "Pinning apps to GNOME dock..."
-mkdir -p /etc/dconf/profile /etc/dconf/db/local.d
-cat > /etc/dconf/profile/user << 'EOF'
-user-db:user
-system-db:local
-EOF
-cat > /etc/dconf/db/local.d/00-favorites << 'EOF'
-[org/gnome/shell]
-favorite-apps=['google-chrome.desktop', 'code.desktop', 'workspace.desktop', 'org.gnome.Terminal.desktop', 'org.gnome.Nautilus.desktop']
-EOF
-dconf update
+# ── KDE Plasma taskbar favorites ──────────────────────────────
+# Static plasma config IDs vary per install, so we use a one-shot autostart
+# that runs plasmashell's scripting API at login to find and configure the
+# task manager widget by type rather than by hardcoded ID.
+log "Setting up KDE taskbar autostart..."
+cat > /usr/local/bin/boxcraft-kde-setup << 'SCRIPT'
+#!/usr/bin/env bash
+sleep 8
+JS='
+var launchers = "preferred://browser,applications:code.desktop,applications:workspace.desktop,applications:org.kde.konsole.desktop,applications:org.kde.dolphin.desktop";
+var allPanels = panels();
+for (var i = 0; i < allPanels.length; i++) {
+    var widgets = allPanels[i].widgets();
+    for (var j = 0; j < widgets.length; j++) {
+        if (widgets[j].type === "org.kde.plasma.icontasks") {
+            widgets[j].currentConfigGroup = ["General"];
+            widgets[j].writeConfig("launchers", launchers);
+            widgets[j].reloadConfig();
+        }
+    }
+}
+'
+(qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$JS" || \
+ qdbus  org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$JS") 2>/dev/null || true
+rm -f "${HOME}/.config/autostart/boxcraft-kde-setup.desktop"
+SCRIPT
+chmod +x /usr/local/bin/boxcraft-kde-setup
 
-# ── Screen resolution 1920x1080 ───────────────────────────────
-log "Configuring screen resolution autostart..."
 mkdir -p "${DEV_HOME}/.config/autostart"
-cat > "${DEV_HOME}/.config/autostart/vboxclient.desktop" << 'EOF'
+cat > "${DEV_HOME}/.config/autostart/boxcraft-kde-setup.desktop" << 'EOF'
 [Desktop Entry]
 Type=Application
-Name=VirtualBox Guest Utilities
-Exec=/usr/bin/VBoxClient-all
+Name=Boxcraft KDE Setup
+Exec=/usr/local/bin/boxcraft-kde-setup
 Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
+Terminal=false
+X-KDE-autostart-enabled=true
 EOF
 
+# ── Screen resolution ─────────────────────────────────────────
+# vboxservice (enabled in provision-base.sh) starts the guest display driver.
+# xrandr --auto picks the best available mode once the driver is up.
+log "Configuring screen resolution autostart..."
 cat > "${DEV_HOME}/.config/autostart/set-resolution.desktop" << 'EOF'
 [Desktop Entry]
 Type=Application
-Name=Set Resolution 1920x1080
-Exec=bash -c 'xrandr --output Virtual-1 --mode 1920x1080 2>/dev/null || xrandr --output VGA-1 --mode 1920x1080 2>/dev/null || true'
+Name=Set Resolution
+Exec=bash -c 'sleep 3 && xrandr --auto'
 Hidden=false
 NoDisplay=false
-X-GNOME-Autostart-enabled=true
+X-KDE-autostart-enabled=true
 EOF
 
-# ── VS Code — skip GNOME Keyring prompt ───────────────────────
-# Auto-login VMs never unlock the keyring, so VS Code prompts every launch.
-# "basic" stores secrets in a plain file instead.
+# ── VS Code — skip keyring prompt ────────────────────────────
 log "Configuring VS Code password store..."
 mkdir -p "${DEV_HOME}/.vscode"
 cat > "${DEV_HOME}/.vscode/argv.json" << 'EOF'

@@ -21,24 +21,23 @@ echo "${DEV_USER}:${DEV_PASSWORD}" | chpasswd
 usermod -aG vagrant,docker "${DEV_USER}" 2>/dev/null || true
 
 log "Installing oh-my-zsh..."
-sudo -u "${DEV_USER}" sh -c \
-  "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
-  -- --unattended
+curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh \
+  -o /tmp/install-omz.sh
+su - "${DEV_USER}" -c "sh /tmp/install-omz.sh --unattended"
+rm -f /tmp/install-omz.sh
 chsh -s /usr/bin/zsh "${DEV_USER}"
 
 log "Installing nvm + Node.js LTS..."
 NVM_VERSION="v0.40.1"
-sudo -u "${DEV_USER}" bash -c "
-  export HOME=${DEV_HOME}
+su - "${DEV_USER}" -c "
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | bash
-  export NVM_DIR=\"${DEV_HOME}/.nvm\"
-  source \"\${NVM_DIR}/nvm.sh\"
+  . ~/.nvm/nvm.sh
   nvm install --lts
   nvm alias default node
 "
 
 log "Installing Rust..."
-sudo -u "${DEV_USER}" bash -c \
+su - "${DEV_USER}" -c \
   "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path"
 
 # Auto-login via LightDM (Mint's default display manager)

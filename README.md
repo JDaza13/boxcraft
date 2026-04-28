@@ -9,9 +9,10 @@ Each profile is fully self-contained — pick one, `cd` into it, and `vagrant up
 |---------|--------|---------|-----|
 | [`ubuntu/`](ubuntu/) | Ubuntu 24.04 LTS | GNOME | `bento/ubuntu-24.04` |
 | [`mint/`](mint/) | Linux Mint 21 | Cinnamon | `CJJR/LinuxMint21` |
+| [`arch/`](arch/) | Arch Linux | KDE Plasma | `generic/arch` |
 
 All profiles ship the same dev stack: git, gh CLI, Docker, nvm/Node LTS,
-Go, Rust, VS Code, tmux, zsh + oh-my-zsh.
+Go, Rust, VS Code, Python 3, tmux, zsh + oh-my-zsh.
 
 ## Quick start
 
@@ -25,19 +26,21 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 # Step 2 (optional but recommended) — pre-bake the base image (~20 min, once)
 #   Skipping this means `vagrant up` takes ~15 min on every fresh destroy.
-.\build.ps1 ubuntu
+#   For Arch, this step is strongly recommended — AUR builds add significant time.
+.\build.ps1 ubuntu   # or: .\build.ps1 mint / .\build.ps1 arch
 
 # Step 3 — set your workspace folder (skip if V:\SharedFolder already exists)
 $env:WORKSPACE = "C:\Users\$env:USERNAME\projects"   # or any folder you like
 
 # Step 4 — boot the VM
-cd ubuntu
-vagrant up           # ~2 min with baked image, ~15 min without
+cd ubuntu            # or: cd mint / cd arch
+vagrant up           # ~2 min with baked image, ~15-30 min without
 ```
 
 `build.ps1` is optional but recommended — it pre-installs all system packages
 into a reusable box so `vagrant up` after a `vagrant destroy` takes ~2 min
-instead of ~15 min.
+instead of ~15 min. For the Arch profile, it is strongly recommended since
+AUR packages (Chrome, VS Code) add significant build time on first boot.
 
 ## Prerequisites
 
@@ -58,8 +61,8 @@ Or install manually:
 ## Usage
 
 ```bash
-cd ubuntu        # or: cd mint
-vagrant up       # First boot — prompts for username/password, ~15 min
+cd ubuntu        # or: cd mint / cd arch
+vagrant up       # First boot — prompts for username/password
 vagrant reload   # Reboot VM
 vagrant ssh      # Terminal access (vagrant user)
 vagrant halt     # Graceful shutdown
@@ -88,8 +91,9 @@ vagrant up
 | git + gh CLI | `gh auth login` to authenticate |
 | Docker + Compose | Dev user is in the `docker` group — use `docker compose` |
 | Node.js LTS | Via nvm — `nvm ls` to see versions |
-| Go 1.22 | `/usr/local/go/bin`, `$GOPATH=$HOME/go` |
+| Go | `/usr/local/go/bin` (ubuntu/mint: 1.22.3, arch: latest via pacman) |
 | Rust | Via rustup — `rustup update` to upgrade |
+| Python 3 + pip | System Python, `python3` / `pip3` |
 | tmux | Prefix: `Ctrl-A`, mouse on, zsh default shell |
 | zsh + oh-my-zsh | Default shell, nvm/go/rust paths wired in |
 
@@ -117,11 +121,20 @@ editing any files:
 |----------|---------|--------------|
 | `DEV_USER` | `dev` | Username for the main account |
 | `DEV_PASSWORD` | _(prompted)_ | Password for the main account |
-| `DEV_TZ` | `America/Bogota` | Timezone (`timedatectl list-timezones`) |
-| `WORKSPACE` | `V:\SharedFolder` | Host path mounted at `/workspace` |
+| `VM_TZ` | `America/Bogota` | Timezone (`timedatectl list-timezones`) |
+| `VM_WORKSPACE` | `V:\SharedFolder` | Host path mounted at `/workspace` |
+| `VM_RAM_MB` | `25000` | RAM allocated to the VM in MB |
+| `VM_CPUS` | `8` | CPU cores allocated to the VM |
+| `VM_DISK_GB` | `60` | Disk size in GB |
+
+Defaults are defined in [vm.rb](vm.rb) at the repo root and shared across all profiles.
 
 ```powershell
-$env:DEV_TZ = "America/New_York"
+$env:VM_RAM_MB    = "16000"
+$env:VM_CPUS      = "4"
+$env:VM_DISK_GB   = "80"
+$env:VM_TZ        = "America/New_York"
+$env:VM_WORKSPACE = "C:\Users\yourname\projects"
 vagrant up
 ```
 
@@ -139,12 +152,13 @@ vagrant up
 `build.ps1` pre-bakes a Packer image so that `vagrant up` after a destroy is fast:
 
 ```powershell
-.\build.ps1 ubuntu   # or: .\build.ps1 mint
+.\build.ps1 ubuntu   # or: .\build.ps1 mint / .\build.ps1 arch
 ```
 
-It takes ~20 minutes once, then every subsequent `vagrant up` skips the heavy
-installs and boots in ~2 minutes. Each profile detects the baked box
-automatically via a sentinel file — no manual config needed.
+It takes ~20 minutes once (longer for Arch due to AUR builds), then every
+subsequent `vagrant up` skips the heavy installs and boots in ~2 minutes.
+Each profile detects the baked box automatically via a sentinel file — no
+manual config needed.
 
 To rebuild (e.g. after changing `provision-base.sh`):
 
@@ -160,23 +174,24 @@ vagrant up
 2. Update `Vagrantfile`: box name, `vb.name`, `vm.hostname`, `BOX`/`USE_BAKED` constants
 3. Rename the Packer template: `ubuntu.pkr.hcl` → `myprofile.pkr.hcl`, update `source_path`
 4. Adapt `provision-base.sh` for the distro's package manager and desktop environment
-5. Adapt `provision.sh` for the distro's display manager (GDM, LightDM, etc.)
-6. Adapt `provision-tune.sh` for any desktop-specific dconf keys
-7. Run `.\build.ps1 myprofile` to bake the image
-8. Add the profile to the table at the top of this file
+5. Adapt `provision.sh` for the distro's display manager (GDM, LightDM, SDDM, etc.)
+6. Adapt `provision-tune.sh` for any desktop-specific config (dconf for GNOME, plasma config for KDE)
+7. Add the profile to the `ValidateSet` in `build.ps1`
+8. Run `.\build.ps1 myprofile` to bake the image
+9. Add the profile to the table at the top of this file
 
 ## Rebuilding from scratch
 
 ```powershell
-cd ubuntu   # or whichever profile
+cd ubuntu   # or: cd mint / cd arch
 vagrant destroy -f
-vagrant up  # fast if baked box exists, ~15 min otherwise
+vagrant up  # fast if baked box exists, ~15-30 min otherwise
 ```
 
 To also discard the Packer-baked box and start completely fresh:
 
 ```powershell
-vagrant box remove boxcraft/ubuntu   # or boxcraft/mint
+vagrant box remove boxcraft/ubuntu   # or boxcraft/mint / boxcraft/arch
 Remove-Item .vagrant\packer_built     # clears the sentinel
 .\build.ps1 ubuntu                    # rebuild from upstream
 ```
@@ -200,7 +215,7 @@ so the group membership takes effect.
 **Wrong screen resolution** — the autostart script handles this on login.
 If it doesn't apply, run manually: `xrandr --output Virtual-1 --mode 1920x1080`
 
-**VS Code prompts for a key on every launch** — GNOME Keyring never unlocks on
+**VS Code prompts for a key on every launch** — the keyring never unlocks on
 auto-login VMs. The tune provisioner writes `~/.vscode/argv.json` with
 `"password-store": "basic"` to bypass it. If you skipped provisioning, create
 the file manually:
@@ -209,3 +224,12 @@ the file manually:
 mkdir -p ~/.vscode
 echo '{ "password-store": "basic" }' > ~/.vscode/argv.json
 ```
+
+**Arch: AUR packages fail during provisioning** — Chrome and VS Code are built
+from AUR via `makepkg` as the `vagrant` user. If a build fails mid-way,
+`vagrant provision --provision-with system` will retry. Running `.\build.ps1 arch`
+avoids this entirely by baking the AUR builds into the box image.
+
+**Arch: KDE taskbar pins not showing** — the plasma config written during
+provisioning uses a fixed containment ID that may not match the live session.
+Right-click the taskbar → `Edit Panel` to pin apps manually.

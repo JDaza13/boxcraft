@@ -17,10 +17,12 @@ log "Updating system..."
 apt-get update -qq
 apt-get upgrade -y -qq
 apt-get install -y -qq \
-  curl wget git unzip gnupg ca-certificates \
+  curl wget git unzip zip gnupg ca-certificates \
   lsb-release apt-transport-https software-properties-common \
   tmux zsh fonts-powerline \
-  build-essential pkg-config libssl-dev
+  build-essential pkg-config libssl-dev \
+  python3 python3-pip python3-venv \
+  tree
 
 # Cinnamon desktop is already in the Mint box — no desktop install needed.
 

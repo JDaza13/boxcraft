@@ -20,13 +20,14 @@
 # Prompt for username and password (hidden input, only on first provision)
 # The chosen username is saved to .vagrant/dev_user so `vagrant provision`
 # picks it up automatically without needing to re-prompt.
+load File.join(__dir__, '..', 'vm.rb')
 require 'io/console'
 vm_id_file   = File.join(__dir__, '.vagrant', 'machines', 'default', 'virtualbox', 'id')
 user_file    = File.join(__dir__, '.vagrant', 'dev_user')
 dev_user     = ENV['DEV_USER']
 dev_password = ENV['DEV_PASSWORD']
 
-if !File.exist?(vm_id_file) || File.read(vm_id_file).strip.empty?
+if !IS_PACKER_BUILD && (!File.exist?(vm_id_file) || File.read(vm_id_file).strip.empty?)
   $stdout.print "\n>>> Username for dev user [dev]: "
   $stdout.flush
   input = $stdin.gets.chomp
@@ -42,7 +43,7 @@ end
 
 dev_user ||= File.exist?(user_file) ? File.read(user_file).strip : "dev"
 dev_password ||= ""
-dev_tz       = ENV.fetch('DEV_TZ', 'America/Bogota')
+dev_tz       = VM_TZ_DEFAULT
 
 # Use the Packer-baked box if build.ps1 has been run, otherwise upstream.
 # Upstream path runs provision-base.sh first (~15 min); baked path skips it (~2 min).
@@ -68,7 +69,7 @@ Vagrant.configure("2") do |config|
 
   # ── Shared folders ─────────────────────────────────────────
   # Default: repo root. Override with: $env:WORKSPACE = "C:\your\path"
-  workspace_host = ENV.fetch('WORKSPACE', 'V:/SharedFolder')
+  workspace_host = VM_WORKSPACE
   config.vm.synced_folder workspace_host, "/workspace",
     owner:         "vagrant",
     group:         "vagrant",
@@ -77,8 +78,8 @@ Vagrant.configure("2") do |config|
   # ── VirtualBox provider ────────────────────────────────────
   config.vm.provider "virtualbox" do |vb|
     vb.name   = "#{dev_user}-mint"
-    vb.memory = 25000
-    vb.cpus   = 8
+    vb.memory = VM_RAM_MB
+    vb.cpus   = VM_CPUS
     vb.gui    = true
 
     vb.customize ["modifyvm", :id, "--vram",               "256"]

@@ -63,9 +63,11 @@ EOF
 
 # ── git globals ───────────────────────────────────────────────
 log "Setting git globals..."
-sudo -u "${DEV_USER}" git config --global init.defaultBranch main
-sudo -u "${DEV_USER}" git config --global pull.rebase false
-sudo -u "${DEV_USER}" git config --global core.editor "code --wait"
+su - "${DEV_USER}" -c "
+  git config --global init.defaultBranch main
+  git config --global pull.rebase false
+  git config --global core.editor 'code --wait'
+"
 
 # ── Workspace launcher ────────────────────────────────────────
 log "Creating /workspace launcher..."

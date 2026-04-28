@@ -14,7 +14,7 @@
 # ============================================================
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("ubuntu", "mint")]
+    [ValidateSet("ubuntu", "mint", "arch")]
     [string]$Profile
 )
 

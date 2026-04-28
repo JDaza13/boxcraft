@@ -1,22 +1,18 @@
 # ============================================================
-#  Ubuntu 24.04 Desktop Workstation — Vagrantfile
-#  Imported from Dev2024 VirtualBox config
+#  Arch Linux Desktop Workstation — Vagrantfile
 #  Hypervisor : VirtualBox
-#  Desktop    : GNOME
+#  Desktop    : KDE Plasma
 #  Tools      : git, gh CLI, Docker, nvm/Node LTS,
 #               tmux, zsh, oh-my-zsh, Go, Rust, VS Code
 #
 #  Usage:
-#    vagrant up          # first boot (~15 min)
+#    vagrant up          # first boot (~20 min, AUR builds take time)
 #    vagrant reload      # reboot VM
 #    vagrant ssh         # terminal access
 #    vagrant halt        # graceful shutdown
 #    vagrant destroy -f  # wipe everything
 # ============================================================
 
-# Prompt for username and password (hidden input, only on first provision)
-# The chosen username is saved to .vagrant/dev_user so `vagrant provision`
-# picks it up automatically without needing to re-prompt.
 load File.join(__dir__, '..', 'vm.rb')
 require 'io/console'
 vm_id_file   = File.join(__dir__, '.vagrant', 'machines', 'default', 'virtualbox', 'id')
@@ -42,19 +38,17 @@ dev_user ||= File.exist?(user_file) ? File.read(user_file).strip : "dev"
 dev_password ||= ""
 dev_tz       = VM_TZ_DEFAULT
 
-# Use the Packer-baked box if build.ps1 has been run, otherwise upstream.
-# Upstream path runs provision-base.sh first (~15 min); baked path skips it (~2 min).
 PACKER_BUILT = File.join(__dir__, '.vagrant', 'packer_built')
 USE_BAKED    = File.exist?(PACKER_BUILT)
-BOX          = USE_BAKED ? "boxcraft/ubuntu" : "bento/ubuntu-24.04"
+BOX          = USE_BAKED ? "boxcraft/arch" : "generic/arch"
 
 Vagrant.configure("2") do |config|
 
   config.vm.box              = BOX
   config.vm.box_check_update = false
-  config.vm.hostname         = "#{dev_user}-ubuntu"
+  config.vm.hostname         = "#{dev_user}-arch"
 
-  # ── NAT port forwarding (imported from Dev2024) ────────────
+  # ── NAT port forwarding ────────────────────────────────────
   config.vm.network "forwarded_port", guest: 8080, host: 8080, id: "airflow"
   config.vm.network "forwarded_port", guest: 3210, host: 3210, host_ip: "0.0.0.0", id: "convex-local"
   config.vm.network "forwarded_port", guest: 3211, host: 3211, host_ip: "0.0.0.0", id: "convex-local-artifacts"
@@ -65,39 +59,33 @@ Vagrant.configure("2") do |config|
   config.vm.network "forwarded_port", guest: 5174, host: 5174, host_ip: "0.0.0.0", id: "vite2"
 
   # ── Shared folders ─────────────────────────────────────────
-  # Default: repo root. Override with: $env:WORKSPACE = "C:\your\path"
   workspace_host = VM_WORKSPACE
   config.vm.synced_folder workspace_host, "/workspace",
     owner:         "vagrant",
     group:         "vagrant",
     mount_options: ["dmode=775", "fmode=664", "_netdev"]
 
-  # ── VirtualBox provider (imported from Dev2024) ────────────
+  # ── VirtualBox provider ────────────────────────────────────
   config.vm.provider "virtualbox" do |vb|
-    vb.name   = "#{dev_user}-ubuntu"
+    vb.name   = "#{dev_user}-arch"
     vb.memory = VM_RAM_MB
     vb.cpus   = VM_CPUS
     vb.gui    = true
 
-    vb.customize ["modifyvm", :id, "--vram",               "256"]      
-    vb.customize ["modifyvm", :id, "--graphicscontroller", "vmsvga"]   
-    vb.customize ["modifyvm", :id, "--accelerate3d",       "on"]      
-    vb.customize ["modifyvm", :id, "--clipboard",          "bidirectional"] 
+    vb.customize ["modifyvm", :id, "--vram",               "256"]
+    vb.customize ["modifyvm", :id, "--graphicscontroller", "vmsvga"]
+    vb.customize ["modifyvm", :id, "--accelerate3d",       "on"]
+    vb.customize ["modifyvm", :id, "--clipboard",          "bidirectional"]
     vb.customize ["modifyvm", :id, "--draganddrop",        "bidirectional"]
-    vb.customize ["modifyvm", :id, "--audio",              "default"]  
-    vb.customize ["modifyvm", :id, "--usb",                "on"]       
-    vb.customize ["modifyvm", :id, "--usbehci",            "on"]       
-    vb.customize ["modifyvm", :id, "--paravirtprovider",   "kvm"]      # effparavirtprovider from Dev2024
-    vb.customize ["modifyvm", :id, "--x2apic",             "on"]       
-    vb.customize ["modifyvm", :id, "--largepages",         "on"]       
+    vb.customize ["modifyvm", :id, "--audio",              "default"]
+    vb.customize ["modifyvm", :id, "--usb",                "on"]
+    vb.customize ["modifyvm", :id, "--usbehci",            "on"]
+    vb.customize ["modifyvm", :id, "--paravirtprovider",   "kvm"]
+    vb.customize ["modifyvm", :id, "--x2apic",             "on"]
+    vb.customize ["modifyvm", :id, "--largepages",         "on"]
   end
 
   # ── Provisioning ───────────────────────────────────────────
-  # "system" — system packages (skipped when using Packer-baked box)
-  # "base"   — user setup; Vagrant reboots the VM afterwards
-  # "tune"   — dotfiles/config; re-run any time with:
-  #              vagrant provision --provision-with tune
-
   unless USE_BAKED
     config.vm.provision "file",
       source:      "provision-base.sh",
