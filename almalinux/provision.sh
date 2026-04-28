@@ -32,9 +32,26 @@ su - "${DEV_USER}" -c "
   nvm install --lts
   nvm alias default node
 "
+NODE_BIN=$(su - "${DEV_USER}" -c ". ~/.nvm/nvm.sh && which node")
+ln -sf "$NODE_BIN"                      /usr/local/bin/node
+ln -sf "$(dirname "$NODE_BIN")/npm"     /usr/local/bin/npm
+ln -sf "$(dirname "$NODE_BIN")/npx"     /usr/local/bin/npx
 
 log "Installing Rust..."
 su - "${DEV_USER}" -c \
   "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path"
+ln -sf "/home/${DEV_USER}/.cargo/bin/cargo"  /usr/local/bin/cargo
+ln -sf "/home/${DEV_USER}/.cargo/bin/rustc"  /usr/local/bin/rustc
+
+log "Writing login message..."
+cat > /etc/motd << EOF
+
+  AlmaLinux dev box  --  logged in as: vagrant
+  Your dev user is: ${DEV_USER}
+
+  Switch with:  su - ${DEV_USER}
+  Or SSH directly:  ssh -p 2222 ${DEV_USER}@localhost
+
+EOF
 
 log "User provisioning complete."

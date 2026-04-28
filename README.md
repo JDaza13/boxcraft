@@ -155,7 +155,7 @@ editing any files:
 | `VM_CPUS` | `8` | CPU cores allocated to the VM |
 | `VM_DISK_GB` | `60` | Disk size in GB |
 
-Defaults are defined in [vm.rb](vm.rb) at the repo root and shared across all profiles.
+Defaults are defined in [constants.rb](constants.rb) at the repo root and shared across all profiles.
 
 ```powershell
 $env:VM_RAM_MB    = "16000"
@@ -199,8 +199,8 @@ vagrant up
 ## Adding a new profile
 
 1. Copy an existing profile directory: `cp -r ubuntu myprofile`
-2. Update `Vagrantfile`: box name, `vb.name`, `vm.hostname`, `BOX`/`USE_BAKED` constants
-3. Rename the Packer template: `ubuntu.pkr.hcl` → `myprofile.pkr.hcl`, update `source_path`
+2. Update `Vagrantfile`: change the three arguments to `baked_box(...)`, `stale_vm_cleanup(...)`, and `vb.name`/`vm.hostname` to use the new profile name
+3. Rename the Packer template: `ubuntu.pkr.hcl` → `myprofile.pkr.hcl`, update `source_path` and the source/build block names
 4. Adapt `provision-base.sh` for the distro's package manager and desktop environment
 5. Adapt `provision.sh` for the distro's display manager (GDM, LightDM, SDDM, etc.)
 6. Adapt `provision-tune.sh` for any desktop-specific config (dconf for GNOME, plasma config for KDE)
