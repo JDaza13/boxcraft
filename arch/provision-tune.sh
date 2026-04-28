@@ -67,6 +67,14 @@ su - "${DEV_USER}" -c "
   git config --global core.editor 'code --wait'
 "
 
+# ── Suppress KDE first-run dialogs ───────────────────────────
+log "Suppressing KDE first-run dialogs..."
+mkdir -p "${DEV_HOME}/.config"
+cat > "${DEV_HOME}/.config/plasma-welcomerc" << 'EOF'
+[General]
+Seen=true
+EOF
+
 # ── Workspace launcher ────────────────────────────────────────
 log "Creating /workspace launcher..."
 mkdir -p "${DEV_HOME}/.local/share/applications"
@@ -79,6 +87,9 @@ Icon=folder
 Terminal=false
 EOF
 
+log "Refreshing KDE application database..."
+su - "${DEV_USER}" -c "kbuildsycoca6 --noincremental 2>/dev/null || true"
+
 # ── KDE Plasma taskbar favorites ──────────────────────────────
 # Static plasma config IDs vary per install, so we use a one-shot autostart
 # that runs plasmashell's scripting API at login to find and configure the
@@ -86,7 +97,7 @@ EOF
 log "Setting up KDE taskbar autostart..."
 cat > /usr/local/bin/boxcraft-kde-setup << 'SCRIPT'
 #!/usr/bin/env bash
-sleep 8
+sleep 10
 JS='
 var launchers = "preferred://browser,applications:code.desktop,applications:workspace.desktop,applications:org.kde.konsole.desktop,applications:org.kde.dolphin.desktop";
 var allPanels = panels();
@@ -101,9 +112,10 @@ for (var i = 0; i < allPanels.length; i++) {
     }
 }
 '
-(qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$JS" || \
- qdbus  org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$JS") 2>/dev/null || true
-rm -f "${HOME}/.config/autostart/boxcraft-kde-setup.desktop"
+if /usr/lib/qt6/bin/qdbus6 org.kde.plasmashell /PlasmaShell \
+     org.kde.PlasmaShell.evaluateScript "$JS" 2>/dev/null; then
+  rm -f "${HOME}/.config/autostart/boxcraft-kde-setup.desktop"
+fi
 SCRIPT
 chmod +x /usr/local/bin/boxcraft-kde-setup
 
@@ -129,6 +141,7 @@ Name=Set Resolution
 Exec=bash -c 'sleep 3 && xrandr --auto'
 Hidden=false
 NoDisplay=false
+Terminal=false
 X-KDE-autostart-enabled=true
 EOF
 

@@ -28,7 +28,7 @@ pacman -S --noconfirm \
 cleancache
 
 log "Installing KDE Plasma desktop..."
-pacman -S --noconfirm plasma sddm dolphin konsole
+pacman -S --noconfirm plasma sddm dolphin konsole qt6-tools
 systemctl enable sddm
 cleancache
 

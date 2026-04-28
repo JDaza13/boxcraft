@@ -24,7 +24,7 @@ user_file    = File.join(__dir__, '.vagrant', 'dev_user')
 dev_user     = ENV['DEV_USER']
 dev_password = ENV['DEV_PASSWORD']
 
-if !IS_PACKER_BUILD && (!File.exist?(vm_id_file) || File.read(vm_id_file).strip.empty?)
+if ARGV.first == 'up' && !IS_PACKER_BUILD && (!File.exist?(vm_id_file) || File.read(vm_id_file).strip.empty?)
   $stdout.print "\n>>> Username for dev user [dev]: "
   $stdout.flush
   input = $stdin.gets.chomp

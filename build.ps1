@@ -1,5 +1,5 @@
 # ============================================================
-#  build.ps1 — Pre-bake a Packer base image for a profile
+#  build.ps1 - Pre-bake a Packer base image for a profile
 #
 #  Usage:
 #    .\build.ps1 ubuntu
@@ -14,7 +14,7 @@
 # ============================================================
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("ubuntu", "mint", "arch")]
+    [ValidateSet("ubuntu", "mint", "arch", "almalinux")]
     [string]$Profile
 )
 
@@ -24,9 +24,16 @@ $BoxName    = "boxcraft/$Profile"
 $PackerFile = Join-Path $ProfileDir "${Profile}.pkr.hcl"
 $BuildsDir  = Join-Path $ProfileDir "builds"
 
+$BuildHint = @{
+    ubuntu    = "~20 min - desktop stack with VS Code and Chrome."
+    mint      = "~20 min - desktop stack with VS Code and Chrome."
+    arch      = "~30-40 min - AUR builds for Chrome and VS Code add significant time."
+    almalinux = "~10 min - headless, no GUI packages."
+}
+
 Write-Host ""
 Write-Host "==> Building Packer image for '$Profile'" -ForegroundColor Cyan
-Write-Host "    This takes ~20 minutes. Go get a coffee." -ForegroundColor Yellow
+Write-Host "    $($BuildHint[$Profile])" -ForegroundColor Yellow
 Write-Host ""
 
 Push-Location $ProfileDir

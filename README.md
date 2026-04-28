@@ -10,9 +10,14 @@ Each profile is fully self-contained — pick one, `cd` into it, and `vagrant up
 | [`ubuntu/`](ubuntu/) | Ubuntu 24.04 LTS | GNOME | `bento/ubuntu-24.04` |
 | [`mint/`](mint/) | Linux Mint 21 | Cinnamon | `CJJR/LinuxMint21` |
 | [`arch/`](arch/) | Arch Linux | KDE Plasma | `generic/arch` |
+| [`almalinux/`](almalinux/) | AlmaLinux 9 | Headless (SSH only) | `bento/almalinux-9` |
 
-All profiles ship the same dev stack: git, gh CLI, Docker, nvm/Node LTS,
+The desktop profiles (ubuntu, mint, arch) ship: git, gh CLI, Docker, nvm/Node LTS,
 Go, Rust, VS Code, Python 3, tmux, zsh + oh-my-zsh.
+
+The `almalinux` profile is a lightweight headless box — no GUI, no VS Code.
+Access is via `vagrant ssh` or any SSH client on port 2222.
+It ships: git, gh CLI, Docker, nvm/Node LTS, Go, Rust, Python 3, vim, neovim, tmux, zsh + oh-my-zsh.
 
 ## Quick start
 
@@ -27,13 +32,13 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 # Step 2 (optional but recommended) — pre-bake the base image (~20 min, once)
 #   Skipping this means `vagrant up` takes ~15 min on every fresh destroy.
 #   For Arch, this step is strongly recommended — AUR builds add significant time.
-.\build.ps1 ubuntu   # or: .\build.ps1 mint / .\build.ps1 arch
+.\build.ps1 ubuntu   # or: .\build.ps1 mint / .\build.ps1 arch / .\build.ps1 almalinux
 
 # Step 3 — set your workspace folder (skip if V:\SharedFolder already exists)
 $env:WORKSPACE = "C:\Users\$env:USERNAME\projects"   # or any folder you like
 
 # Step 4 — boot the VM
-cd ubuntu            # or: cd mint / cd arch
+cd ubuntu            # or: cd mint / cd arch / cd almalinux
 vagrant up           # ~2 min with baked image, ~15-30 min without
 ```
 
@@ -60,6 +65,8 @@ Or install manually:
 
 ## Usage
 
+### Desktop profiles (ubuntu, mint, arch)
+
 ```bash
 cd ubuntu        # or: cd mint / cd arch
 vagrant up       # First boot — prompts for username/password
@@ -73,6 +80,27 @@ vagrant provision --provision-with tune     # Re-apply dotfiles/config without r
 First `vagrant up` prompts for a username (Enter to accept `dev`) and a password
 (hidden input), then opens a VirtualBox window. The VM reboots once into the
 desktop and auto-logs in as that user.
+
+### AlmaLinux headless box
+
+```bash
+cd almalinux
+vagrant up       # First boot — prompts for username/password
+vagrant ssh      # Drop into a zsh shell — the only way to use this box
+vagrant halt     # Graceful shutdown
+vagrant destroy -f
+vagrant provision --provision-with tune     # Re-apply dotfiles without rebuilding
+```
+
+There is no GUI. Everything happens over SSH. Port 2222 on localhost forwards to
+the VM's SSH port, so any SSH client works:
+
+```bash
+ssh -p 2222 yourname@localhost
+```
+
+The VM defaults to 4 GB RAM / 2 CPUs — enough for most backend workloads. Bump
+with `VM_RAM_MB` / `VM_CPUS` if you need more.
 
 To skip the prompts on rebuild, set env vars instead:
 
@@ -152,7 +180,7 @@ vagrant up
 `build.ps1` pre-bakes a Packer image so that `vagrant up` after a destroy is fast:
 
 ```powershell
-.\build.ps1 ubuntu   # or: .\build.ps1 mint / .\build.ps1 arch
+.\build.ps1 ubuntu   # or: .\build.ps1 mint / .\build.ps1 arch / .\build.ps1 almalinux
 ```
 
 It takes ~20 minutes once (longer for Arch due to AUR builds), then every
@@ -183,7 +211,7 @@ vagrant up
 ## Rebuilding from scratch
 
 ```powershell
-cd ubuntu   # or: cd mint / cd arch
+cd ubuntu   # or: cd mint / cd arch / cd almalinux
 vagrant destroy -f
 vagrant up  # fast if baked box exists, ~15-30 min otherwise
 ```
@@ -191,7 +219,7 @@ vagrant up  # fast if baked box exists, ~15-30 min otherwise
 To also discard the Packer-baked box and start completely fresh:
 
 ```powershell
-vagrant box remove boxcraft/ubuntu   # or boxcraft/mint / boxcraft/arch
+vagrant box remove boxcraft/ubuntu   # or boxcraft/mint / boxcraft/arch / boxcraft/almalinux
 Remove-Item .vagrant\packer_built     # clears the sentinel
 .\build.ps1 ubuntu                    # rebuild from upstream
 ```
